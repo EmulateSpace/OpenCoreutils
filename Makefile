@@ -327,6 +327,16 @@ else
 include/config/auto.conf: ;
 endif # $(dot-config)
 
+ifdef CONFIG_DEBUG_LINUX
+  KBUILD_CFLAGS += -g -Wall -Wunused
+  KBUILD_AFLAGS_KERNEL += -ggdb  -am
+endif
+
+ifdef CONFIG_X86
+  KBUILD_AFLAGS_KERNEL += --32
+  KBUILD_CFLAGS += -m32 -fno-stack-protector -fgnu89-inline -fomit-frame-pointer -fno-builtin
+  CPPFLAGS += -I$(srctree)/include -nostdinc
+endif
 
 # The all: target is the default when no target is given on the
 # command line.
@@ -335,7 +345,7 @@ endif # $(dot-config)
 all: objdump
 
 
-objs-y		:= main
+objs-y		:= binutils
 libs-y		:=
 
 objdump-dirs	:= $(objs-y) $(libs-y)
@@ -346,7 +356,7 @@ objdump-all	:= $(objdump-objs) $(objdump-libs)
 # Do modpost on a prelinked vmlinux. The finally linked vmlinux has
 # relevant sections renamed as per the linker script.
 quiet_cmd_objdump = LD      $@
-      cmd_objdump = $(CC) $(LDFLAGS) -o $@                          \
+      cmd_objdump = $(CC) $(KBUILD_CFLAGS) -o $@         \
       -Wl,--start-group $(objdump-libs) $(objdump-objs) -Wl,--end-group
 
 objdump: $(objdump-all)
