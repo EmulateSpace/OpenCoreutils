@@ -3,6 +3,14 @@
  *
  * (C) 2017.09 <buddy.zhang@aliyun.com>
  *
+ * The GNU C Library is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * Lesser General Public License for more details.
+ *
+ * You should have received a copy of the GNU Lesser General Public
+ * License along with the GNU C Library; if not, see
+ * <http://www.gnu.org/licenses/>
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,9 +49,107 @@ static int create_file_header(const char *filename)
 /*
  * Destroy ELF header.
  */
-void destroy_file_header(void)
+static void destroy_file_header(void)
 {
     xfree(file_header);
+}
+
+/*
+ * ELF head check
+ * @return: 0 if file is ELF.
+ */
+static int elf_check_magic(Elf32_Ehdr *elf)
+{
+    if (strncmp(elf->e_ident, ELFMAG, 4) != 0)
+        return -EINVAL;
+    return 0;
+}
+
+/*
+ * elf file class
+ * @return: 0 invalid class
+ *          1 file is 32-bit class
+ *          2 file is 64-bit class
+ */
+static int elf_file_class(Elf32_Ehdr *elf)
+{
+    return (elf->e_ident[EI_CLASS] & ELFCLASSNUM);
+}
+
+/*
+ * elf data encoding.
+ * @return: 0 invalid data encoding.
+ *          1 little endian.
+ *          2 big endian.
+ */
+static int elf_data_encoding(Elf32_Ehdr *elf)
+{
+    return (elf->e_ident[EI_DATA] & ELFDATANUM);
+}
+
+/*
+ * elf file version
+ * @return: file version.
+ */
+static int elf_file_version(Elf32_Ehdr *elf)
+{
+    return (elf->e_ident[EI_VERSION] & 0xff);
+}
+
+/*
+ * elf OS ABI identification.
+ */
+static int elf_os_ABI(Elf32_Ehdr *elf)
+{
+    return (elf->e_ident[EI_OSABI] & ELFOSABI_STANDALONE);
+}
+
+/*
+ * elf abi version
+ */
+static int elf_ABI_version(Elf32_Ehdr *elf)
+{
+    return (elf->e_ident[EI_ABIVERSION] & 0xff);
+}
+
+/*
+ * elf pad
+ */
+static int elf_pad(Elf32_Ehdr *elf)
+{
+    return (elf->e_ident[EI_PAD] & 0xff);
+}
+
+/*
+ * object file type.
+ * @return: 0 No file type.
+ *          1 Relocatable file.
+ *          2 Executable file.
+ *          3 Shared object file.
+ *          4 Core file
+ */
+static int elf_object_file_type(Elf32_Ehdr *elf)
+{
+    return (elf->e_type & 0x0f);
+}
+
+/*
+ * architecture for target.
+ * more return information refe include/elf.h EM_*
+ */
+static int elf_arch_machine(Elf32_Ehdr *elf)
+{
+    return (elf->e_machine & 0xffff);
+}
+
+/*
+ * ELF version
+ * @return: 0 Invalid ELF version
+ *          1 Current version
+ */
+static int elf_version(Elf32_Ehdr *elf)
+{
+    return (elf->e_version & 0x01);
 }
 
 static int dump_section_headers(const char *filename)
@@ -51,8 +157,6 @@ static int dump_section_headers(const char *filename)
     int i;
 
     create_file_header(filename);
-    
-    printf("machine %d\n", file_header->e_machine);
     destroy_file_header();
     return 0;
 }
