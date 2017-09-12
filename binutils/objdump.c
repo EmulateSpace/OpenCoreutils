@@ -10,32 +10,50 @@
 #include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <string.h>
 
 #include <xmalloc.h>
+#include <elf.h>
 
 #define HEADERS_SIZE  1024
 
 /* global options */
 static int __section_headers;
+static Elf32_Ehdr *file_header;
+
+/*
+ * create ELF header struct.
+ */
+static int create_file_header(const char *filename)
+{
+    int fd;
+
+    file_header = xmalloc(sizeof(*file_header));
+    memset(file_header, 0, sizeof(*file_header));
+    fd = open(filename, O_RDONLY);
+    if (!fd)
+        exit(EXIT_FAILURE);
+    read(fd, (char *)(unsigned long)file_header, sizeof(*file_header));
+    close(fd);
+    return 0;
+}
+
+/*
+ * Destroy ELF header.
+ */
+void destroy_file_header(void)
+{
+    xfree(file_header);
+}
 
 static int dump_section_headers(const char *filename)
 {
-    char *buffer;
-    int fd;
     int i;
 
-    buffer = xmalloc(HEADERS_SIZE);
-    fd = open(filename, O_RDONLY);
-    if (!fd)
-        return -ENODEV;
-    read(fd, buffer, HEADERS_SIZE);
-
-    for (i = 0; i < 10; i++)
-        printf(" %d ", buffer[i]);
-    printf("\n");
-
-    xfree(buffer);
-    close(fd);
+    create_file_header(filename);
+    
+    printf("machine %d\n", file_header->e_machine);
+    destroy_file_header();
     return 0;
 }
 
