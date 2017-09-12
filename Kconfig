@@ -12,7 +12,5 @@ config CROSS_COMPILE
 	  need to set this unless you want the configured kernel build
 	  directory to select the cross-compiler automatically.
 
-config X86
-	bool "i386 family"
-
 source "binutils/Kconfig"
+source "lib/Kconfig"

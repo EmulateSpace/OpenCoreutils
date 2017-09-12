@@ -1,0 +1,11 @@
+#
+# Library configuration
+#
+menu "Library Configuration"
+
+config XMALLOC
+	bool "xmalloc utils support"
+	help
+	  Safe malloc memory from libC
+
+endmenu
