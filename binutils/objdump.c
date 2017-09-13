@@ -19,6 +19,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/types.h>
 
 #include <xmalloc.h>
 #include <elf.h>
@@ -27,21 +28,22 @@
 
 /* global options */
 static int __section_headers;
-static Elf32_Ehdr *file_header;
+static Elf32_Ehdr *elf_file_header;
+static Elf32_Shdr *elf_section_table;
 
 /*
  * create ELF header struct.
  */
-static int create_file_header(const char *filename)
+static int create_elf_file_header(const char *filename)
 {
     int fd;
 
-    file_header = xmalloc(sizeof(*file_header));
-    memset(file_header, 0, sizeof(*file_header));
-    fd = open(filename, O_RDONLY);
+    elf_file_header = xmalloc(sizeof(*elf_file_header));
+    memset(elf_file_header, 0, sizeof(*elf_file_header));
+    fd = open(filename, O_RDONLY, 0444);
     if (!fd)
         exit(EXIT_FAILURE);
-    read(fd, (char *)(unsigned long)file_header, sizeof(*file_header));
+    read(fd, (char *)(unsigned long)elf_file_header, sizeof(*elf_file_header));
     close(fd);
     return 0;
 }
@@ -49,9 +51,37 @@ static int create_file_header(const char *filename)
 /*
  * Destroy ELF header.
  */
-static void destroy_file_header(void)
+static void destroy_elf_file_header(void)
 {
-    xfree(file_header);
+    xfree(elf_file_header);
+}
+
+/*
+ * Cacahe elf section table.
+ */
+static int create_elf_section_table(const char *filename)
+{
+    int fd;
+
+    elf_section_table = xmalloc(elf_file_header->e_shentsize * elf_file_header->e_shnum);
+    memset(elf_section_table, 0, elf_file_header->e_shentsize * elf_file_header->e_shnum);
+
+    fd = open(filename, O_RDONLY, 0444);
+    if (!fd)
+        return -ENODEV;
+    lseek(fd, elf_file_header->e_shoff, SEEK_SET);
+    read(fd, elf_section_table, elf_file_header->e_shentsize * elf_file_header->e_shnum);
+
+    close(fd);
+    return 0;
+}
+
+/*
+ * Destroy elf section table cache.
+ */
+static void destroy_elf_section_table(void)
+{
+    xfree(elf_section_table);
 }
 
 /*
@@ -152,12 +182,36 @@ static int elf_version(Elf32_Ehdr *elf)
     return (elf->e_version & 0x01);
 }
 
+/*
+ * load setion
+ * @filename:   Object file.
+ * @st:         Section table of elf file.
+ * @index:      Index of section on section table.
+ *
+ * @return: the buffer of section contents.
+ */
+static void *elf_load_section(const char *filename, Elf32_Shdr *st, int index)
+{
+    size_t offset;
+
+    offset = ((Elf32_Shdr *)((Elf32_Shdr *)st + index))->sh_offset;
+
+    printf("index %d offset %d\n", index, offset);
+}
+
 static int dump_section_headers(const char *filename)
 {
-    int i;
+    int i = 8;
 
-    create_file_header(filename);
-    destroy_file_header();
+    create_elf_file_header(filename);
+    create_elf_section_table(filename);
+
+    printf("EEElf->e_shnum %#x\n", elf_file_header->e_shnum);
+    while (i--)
+        elf_load_section(filename, elf_section_table, i);
+
+    destroy_elf_section_table();
+    destroy_elf_file_header();
     return 0;
 }
 
