@@ -6,6 +6,7 @@ menu "core utilise tools configuration"
 config OBJDUMP
 	bool "objdump on utilse"
 	select XMALLOC
+	select ELF_API
 	help
 	  display information from object files
 

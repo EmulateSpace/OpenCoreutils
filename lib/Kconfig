@@ -8,4 +8,9 @@ config XMALLOC
 	help
 	  Safe malloc memory from libC
 
+config ELF_API
+	bool "ELF ABI"
+	help
+	  EFL application interface
+
 endmenu
