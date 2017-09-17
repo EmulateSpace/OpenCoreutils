@@ -40,6 +40,9 @@ extern int elf_arch_machine(Elf32_Ehdr *elf);
 /* elf version */
 extern int elf_version(Elf32_Ehdr *elf);
 
+/* The number of section tables */
+extern int elf_section_numbers(Elf32_Ehdr *elf);
+
 /* elf file name get */
 extern void elf_file_name_get(char *oldname);
 
@@ -65,5 +68,11 @@ extern Elf32_Shdr *elf_get_section_by_index(int index);
 extern void *elf_load_section_by_index(int index);
 
 /* free section buffer */
-extern void elf_section_buffer_free(void *buffer);
+extern void elf_free_section(void *buffer);
+
+/* get section name by index */
+extern const char *elf_get_section_name_by_index(int index);
+
+/* free section name */
+extern void elf_free_section_name(const char *name);
 #endif

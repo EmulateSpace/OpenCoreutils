@@ -22,8 +22,46 @@
 #include <sys/types.h>
 
 #include <elf.h>
+#include <xmalloc.h>
 
-static int __section_headers;
+static int __dump_headers;
+
+/*
+ * Dump elf headers
+ */
+static void dump_headers(void)
+{
+    int i;
+
+    /* Dump file name, file class and target machine */
+    printf("%s:     file format elf%s-%s\n\n", __elf_file_name,
+            elf_file_class(__elf_header) ? "32" : "64",
+            elf_arch_machine(__elf_header) ? "i386": "x86");
+
+    /* Dump section */
+    printf("Sections:\n");
+    printf("Idx Name          Size      VMA       LMA       File off  Algn\n");
+    for (i = 0; i < elf_section_numbers(__elf_header); i++) {
+        /* get section table describe */
+        Elf32_Shdr *st = elf_get_section_by_index(i);
+        char *section_name = elf_get_section_name_by_index(st->sh_name);
+
+        /* first string table is NULL */
+        if (i == 0) {
+            printf("%3d  NULL\n", i);
+            continue;
+        }
+
+        /* dump base section info */
+        printf("%3d %-13s %08x  %08x  %08x  %08x  %d**%d\n", i, 
+               section_name, st->sh_size, st->sh_addr, st->sh_addr, 
+               st->sh_offset, st->sh_addralign, st->sh_addralign);
+        
+
+        /* free section name in the end */
+        xfree(section_name);
+    }    
+}
 
 /* Initialize objdump tools */
 static int objdump_init(const char *filename)
@@ -60,7 +98,7 @@ int main(int argc, char **argv[])
     while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
         switch (c) {
         case 'h':
-            __section_headers = 1;
+            __dump_headers = 1;
             break;
         default:
             abort();
@@ -69,7 +107,8 @@ int main(int argc, char **argv[])
     /* initalize objdump */
     objdump_init(argv[argc - 1]);
 
-    if (__section_headers) {
+    if (__dump_headers) {
+        dump_headers();
     }
     
     /* exit objdump */

@@ -35,6 +35,9 @@ Elf32_Ehdr *__elf_header;
 Elf32_Shdr *__elf_section_table;
 /* The file name of current */
 char *__elf_file_name = NULL;
+/* Buffer of strtab */
+char *__elf_strtab = NULL;
+
 
 /*
  * ELF head check
@@ -135,6 +138,14 @@ int elf_version(Elf32_Ehdr *elf)
 }
 
 /*
+ * get number of sections
+ */
+int elf_section_numbers(Elf32_Ehdr *elf)
+{
+    return (elf->e_shnum);
+}
+
+/*
  * elf file name store.
  */
 void elf_file_name_get(char *oldname)
@@ -210,6 +221,17 @@ int elf_section_table_get(void)
     lseek(fd, __elf_header->e_shoff, SEEK_SET);
     read(fd, __elf_section_table, __elf_header->e_shentsize *
                                   __elf_header->e_shnum);
+#ifdef CONFIG_ELF_BUFFER_STRTAB
+    /* locate strtab on file */
+    lseek(fd, 
+          __elf_section_table[__elf_header->e_shstrndx].sh_offset, SEEK_SET);
+    /* allocate memory for .strtab buffer*/
+    __elf_strtab = xmalloc(
+          __elf_section_table[__elf_header->e_shstrndx].sh_size);
+    /* load elf string table section from file */
+    read(fd, __elf_strtab, 
+          __elf_section_table[__elf_header->e_shstrndx].sh_size);
+#endif
 
     close(fd);
     return 0;
@@ -220,6 +242,9 @@ int elf_section_table_get(void)
  */
 void elf_section_table_put(void)
 {
+    if (__elf_strtab)
+        xfree(__elf_strtab);
+    __elf_strtab = NULL;
     if (__elf_section_table)
         xfree(__elf_section_table);
     __elf_section_table = NULL;
@@ -266,8 +291,68 @@ void *elf_load_section_by_index(int index)
 /*
  * free section buffer
  */
-void elf_section_buffer_free(void *buffer)
+void elf_free_section(void *buffer)
 {
     if (!buffer)
         xfree(buffer);
 }
+
+/*
+ * get section name by index.
+ * @index: sh_name on Elf32_Shdr
+ */
+const char *elf_get_section_name_by_index(int index)
+{
+#ifndef CONFIG_ELF_BUFFER_STRTAB
+    char *first = NULL;
+    char *dest  = NULL;
+    int locate;
+
+    /* get index of string table */
+    __elf_strtab = elf_load_section_by_index(__elf_header->e_shstrndx);
+    /* get first character address of string. */
+    first = &__elf_strtab[index];
+    /* locate end character */
+    locate = strchr(first, '\0');
+    /* allocate memory fo name */
+    dest = xmalloc(locate * sizeof(char) + 1);
+    /* dumplicate contents to new string */
+    strncpy(dest, first, locate + 1);
+    /* free section */
+    xfree(__elf_strtab);
+    __elf_strtab = NULL;
+    return (dest);
+#endif
+    if (!__elf_strtab)
+        return -EINVAL;
+    /* get frist char of specify string */
+    return (&__elf_strtab[index]);
+}
+
+/* 
+ * free section name 
+ */
+void elf_free_section_name(const char *name)
+{
+#ifndef CONFIG_ELF_BUFFER_STRTAB
+    if (name)
+        xfree(name);
+#endif
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
