@@ -1,78 +1,85 @@
-#ifndef _ELF_IN_H
-#define _ELF_IN_H
+#ifndef _ELF_H
+#define _ELF_H
 
 #include <elf-in.h>
 
-/* The elf head for current file */
-extern Elf32_Ehdr *__elf_header;
-/* The elf section table for current. */
-extern Elf32_Shdr *__elf_section_table;
-/* The file name of current */
-extern char *__elf_file_name;
+/*  elf file class */
+extern int elf_header_file_class(Elf32_Ehdr *elf);
 
-/* elf magic check */
-extern int elf_check_magic(Elf32_Ehdr *elf);
-
-/* elf file cleass */
-extern int elf_file_class(Elf32_Ehdr *elf);
-
-/* elf data encoding */
-extern int elf_data_encoding(Elf32_Ehdr *elf);
+/* elf data encoding. */
+extern int elf_header_data_encoding(Elf32_Ehdr *elf);
 
 /* elf file version */
-extern int elf_file_version(Elf32_Ehdr *elf);
+extern int elf_header_file_version(Elf32_Ehdr *elf);
 
 /* elf OS ABI identification */
-extern int elf_os_ABI(Elf32_Ehdr *elf);
+extern int elf_header_os_ABI(Elf32_Ehdr *elf);
 
 /* elf abi version */
-extern int elf_ABI_version(Elf32_Ehdr *elf);
+extern int elf_header_ABI_version(Elf32_Ehdr *elf);
 
 /* elf pad */
-extern int elf_pad(Elf32_Ehdr *elf);
+extern int elf_header_pad(Elf32_Ehdr *elf);
 
 /* object file type */
-extern int elf_object_file_type(Elf32_Ehdr *elf);
+extern int elf_header_object_file_type(Elf32_Ehdr *elf);
 
 /* architecture for target */
-extern int elf_arch_machine(Elf32_Ehdr *elf);
+extern int elf_header_arch_machine(Elf32_Ehdr *elf);
 
-/* elf version */
-extern int elf_version(Elf32_Ehdr *elf);
+/* ELF version */
+extern int elf_header_version(Elf32_Ehdr *elf);
 
-/* The number of section tables */
-extern int elf_section_numbers(Elf32_Ehdr *elf);
+/* get number of sections */
+extern int elf_header_section_numbers(Elf32_Ehdr *elf);
 
-/* elf file name get */
-extern void elf_file_name_get(char *oldname);
+/* get section header from section table */
+extern Elf32_Shdr *elf_section_header_get_by_index(Elf32_Shdr *st, int index);
 
-/* elf file name put */
-extern void elf_file_name_put(void);
+/* elf check */
+extern int elf_header_check_magic(Elf32_Ehdr *elf);
 
-/* get elf header struct */
-extern int elf_header_get(void);
+/* alloc elf header */
+extern Elf32_Ehdr *elf_header_alloc(const char *filename);
 
-/* put elf header struct */
-extern void elf_header_put(void);
+/* free elf header */
+extern void elf_header_free(Elf32_Ehdr *header);
 
-/* get elf section table */
-extern int elf_section_table_get(void);
+/* alloc elf section table */
+extern Elf32_Shdr *elf_section_table_alloc(const char *filename);
 
-/* put elf section table */
-extern void elf_section_table_put(void);
+/* free elf section table */
+extern void elf_section_table_free(Elf32_Shdr *st);
 
-/* get elf section by index */
-extern Elf32_Shdr *elf_get_section_by_index(int index);
+/* alloc elf section header by offset */
+extern Elf32_Shdr *elf_section_header_alloc_by_offset(const char *filename,
+           int offset);
 
-/* load section by index */
-extern void *elf_load_section_by_index(int index);
+/* alloc elf section header by name */
+extern Elf32_Shdr *elf_section_header_alloc_by_name(const char *filename,
+            const char *name);
 
-/* free section buffer */
-extern void elf_free_section(void *buffer);
+/* free elf section header */
+extern void elf_section_header_free(Elf32_Shdr *st);
 
-/* get section name by index */
-extern const char *elf_get_section_name_by_index(int index);
+/* alloc section contents */
+extern void *elf_section_contents_alloc(const char *filename, Elf32_Shdr *st);
+
+/* free section contents */
+extern void elf_section_contents_free(void *stc);
+
+/* alloc section contents by offset */
+extern void *elf_section_contents_alloc_by_offset(const char *filename, 
+            int offset);
+
+/* alloc section contents by name */
+extern void *elf_section_contents_alloc_by_name(const char *filename,
+      const char *name);
+
+/* alloc section name */
+extern char *elf_section_name_alloc(const char *filename, Elf32_Shdr *st);
 
 /* free section name */
-extern void elf_free_section_name(const char *name);
+extern void elf_section_name_free(void *name);
+
 #endif

@@ -12,7 +12,6 @@
  * License along with the GNU C Library; if not, see
  * <http://www.gnu.org/licenses/>
  */
-#include <elf.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
@@ -21,31 +20,27 @@
 #include <fcntl.h>
 
 #include <xmalloc.h>
-/* ----------------- 
- *   __elf_file_name
+#include <elf.h>
+/* --------------------------------------- 
+ *   elf file (const char *)
+ *       | | 
+ *   elf header (Elf32_Ehdr)
  *       | |
- *   __elf_header
+ *   elf section table (Elf32_Shdr[])
  *       | |
- *   __elf_section_table
+ *   elf section header (Elf32_Shdr)
+ *       | |
+ *   elf section contents (void *)
+ * ---------------------------------------
  */
- 
-/* The elf head for current file */
-Elf32_Ehdr *__elf_header;
-/* The elf section table for current. */
-Elf32_Shdr *__elf_section_table;
-/* The file name of current */
-char *__elf_file_name = NULL;
-/* Buffer of strtab */
-char *__elf_strtab = NULL;
-
 
 /*
  * ELF head check
  * @return: 0 if file is ELF.
  */
-int elf_check_magic(Elf32_Ehdr *elf)
+int elf_header_check_magic(Elf32_Ehdr *elf)
 {
-    if (strncmp(elf->e_ident, ELFMAG, 4) != 0)
+    if (strncmp((char *)elf->e_ident, ELFMAG, 4) != 0)
         return -EINVAL;
     return 0;
 }
@@ -56,7 +51,7 @@ int elf_check_magic(Elf32_Ehdr *elf)
  *          1 file is 32-bit class
  *          2 file is 64-bit class
  */
-int elf_file_class(Elf32_Ehdr *elf)
+int elf_header_file_class(Elf32_Ehdr *elf)
 {
     return (elf->e_ident[EI_CLASS] & ELFCLASSNUM);
 }
@@ -67,7 +62,7 @@ int elf_file_class(Elf32_Ehdr *elf)
  *          1 little endian.
  *          2 big endian.
  */
-int elf_data_encoding(Elf32_Ehdr *elf)
+int elf_header_data_encoding(Elf32_Ehdr *elf)
 {
     return (elf->e_ident[EI_DATA] & ELFDATANUM);
 }
@@ -76,7 +71,7 @@ int elf_data_encoding(Elf32_Ehdr *elf)
  * elf file version
  * @return: file version.
  */
-int elf_file_version(Elf32_Ehdr *elf)
+int elf_header_file_version(Elf32_Ehdr *elf)
 {
     return (elf->e_ident[EI_VERSION] & 0xff);
 }
@@ -84,7 +79,7 @@ int elf_file_version(Elf32_Ehdr *elf)
 /*
  * elf OS ABI identification.
  */
-int elf_os_ABI(Elf32_Ehdr *elf)
+int elf_header_os_ABI(Elf32_Ehdr *elf)
 {
     return (elf->e_ident[EI_OSABI] & ELFOSABI_STANDALONE);
 }
@@ -92,7 +87,7 @@ int elf_os_ABI(Elf32_Ehdr *elf)
 /*
  * elf abi version
  */
-int elf_ABI_version(Elf32_Ehdr *elf)
+int elf_header_ABI_version(Elf32_Ehdr *elf)
 {
     return (elf->e_ident[EI_ABIVERSION] & 0xff);
 }
@@ -100,7 +95,7 @@ int elf_ABI_version(Elf32_Ehdr *elf)
 /*
  * elf pad
  */
-int elf_pad(Elf32_Ehdr *elf)
+int elf_header_pad(Elf32_Ehdr *elf)
 {
     return (elf->e_ident[EI_PAD] & 0xff);
 }
@@ -113,7 +108,7 @@ int elf_pad(Elf32_Ehdr *elf)
  *          3 Shared object file.
  *          4 Core file
  */
-int elf_object_file_type(Elf32_Ehdr *elf)
+int elf_header_object_file_type(Elf32_Ehdr *elf)
 {
     return (elf->e_type & 0x0f);
 }
@@ -122,7 +117,7 @@ int elf_object_file_type(Elf32_Ehdr *elf)
  * architecture for target.
  * more return information refe include/elf.h EM_*
  */
-int elf_arch_machine(Elf32_Ehdr *elf)
+int elf_header_arch_machine(Elf32_Ehdr *elf)
 {
     return (elf->e_machine & 0xffff);
 }
@@ -132,227 +127,323 @@ int elf_arch_machine(Elf32_Ehdr *elf)
  * @return: 0 Invalid ELF version
  *          1 Current version
  */
-int elf_version(Elf32_Ehdr *elf)
+int elf_header_version(Elf32_Ehdr *elf)
 {
     return (elf->e_version & 0x01);
 }
 
 /*
  * get number of sections
+ * @elf: Section header
+ *
+ * @return: the number of section headers on section table.
  */
-int elf_section_numbers(Elf32_Ehdr *elf)
+int elf_header_section_numbers(Elf32_Ehdr *elf)
 {
     return (elf->e_shnum);
 }
 
 /*
- * elf file name store.
+ * get section header from section table
+ * @st: section table
+ * @index: offset on section table.
+ *
+ * @return: Elf section header.
  */
-void elf_file_name_get(char *oldname)
+Elf32_Shdr *elf_section_header_get_by_index(Elf32_Shdr *st, int index)
 {
-    __elf_file_name = xmalloc(strlen(oldname) + 1);
-    strcpy(__elf_file_name, oldname);
+    return (st) + index;
 }
 
-/*
- * elf file name free
+/* (OK)
+ * alloc elf header struct for specify file.
+ * @filename: file name.
+ *
+ * @return: Elf32 header.
  */
-void elf_file_name_put(void)
-{
-    if (!__elf_file_name)
-        xfree(__elf_file_name);
-    __elf_file_name = NULL;
-}
-
-/*
- * Get elf header struct.
- */
-int elf_header_get(void)
+Elf32_Ehdr *elf_header_alloc(const char *filename)
 {
     int fd;
-
-    if (!__elf_file_name)
-        return -ENODEV;
+    Elf32_Ehdr *tmp_header;
 
     /* allocate memory for elf_header */
-    __elf_header = xmalloc(sizeof(*__elf_header));
-    memset(__elf_header, 0, sizeof(*__elf_header));
+    tmp_header = xmalloc(sizeof(Elf32_Ehdr));
+    memset(tmp_header, 0, sizeof(Elf32_Ehdr));
 
-    fd = open(__elf_file_name, O_RDONLY, 0444);
+    fd = open(filename, O_RDONLY, 0444);
     if (!fd)
-        return -ENODEV;
-    read(fd, __elf_header, sizeof(*__elf_header));
+        return NULL;
+    read(fd, tmp_header, sizeof(Elf32_Ehdr));
     close(fd);
-    return 0;
+    return tmp_header;
 }
 
-/*
- * put elf header.
+/* (OK)
+ * free elf32_Ehdr
+ * @header: Elf32 Header
  */
-void elf_header_put(void)
+void elf_header_free(Elf32_Ehdr *header)
 {
-    if (!__elf_header)
-        xfree(__elf_header);
-    __elf_header = NULL;
+    xfree(header);
 }
 
-/*
- * get elf section table.
+/* (OK)
+ * get elf section table for specify file.
+ * @filename: specify file.
+ * 
+ * @return: elf section table for elf file
  */
-int elf_section_table_get(void)
+Elf32_Shdr *elf_section_table_alloc(const char *filename)
 {
+    Elf32_Ehdr *header;
+    Elf32_Shdr *st;
     int fd;
 
-    if (!__elf_file_name)
-        return -ENODEV;
-
-    if (!__elf_header)
-        elf_header_get();
+    /* get elf header for file */
+    header = elf_header_alloc(filename);
 
     /* Allocate memory for elf section table */
-    __elf_section_table = xmalloc(__elf_header->e_shentsize *
-                                  __elf_header->e_shnum);
-    memset(__elf_section_table, 0, __elf_header->e_shentsize *
-                                   __elf_header->e_shnum);
+    st = xmalloc(header->e_shentsize * header->e_shnum);
+    memset(st, 0, header->e_shentsize * header->e_shnum);
 
-    fd = open(__elf_file_name, O_RDONLY, 0444);
+    /* load contents from file */
+    fd = open(filename, O_RDONLY, 0444);
     if (!fd)
-        return -ENODEV;
-    lseek(fd, __elf_header->e_shoff, SEEK_SET);
-    read(fd, __elf_section_table, __elf_header->e_shentsize *
-                                  __elf_header->e_shnum);
-#ifdef CONFIG_ELF_BUFFER_STRTAB
-    /* locate strtab on file */
-    lseek(fd, 
-          __elf_section_table[__elf_header->e_shstrndx].sh_offset, SEEK_SET);
-    /* allocate memory for .strtab buffer*/
-    __elf_strtab = xmalloc(
-          __elf_section_table[__elf_header->e_shstrndx].sh_size);
-    /* load elf string table section from file */
-    read(fd, __elf_strtab, 
-          __elf_section_table[__elf_header->e_shstrndx].sh_size);
-#endif
-
+        return NULL;
+    lseek(fd, header->e_shoff, SEEK_SET);
+    read(fd, st, header->e_shentsize * header->e_shnum);
+    /* exit */
     close(fd);
-    return 0;
+    elf_header_free(header);
+    return st;
 }
 
-/*
- * put elf section table.
+/* (OK)
+ * free section table
+ * @st: elf section table.
  */
-void elf_section_table_put(void)
+void elf_section_table_free(Elf32_Shdr *st)
 {
-    if (__elf_strtab)
-        xfree(__elf_strtab);
-    __elf_strtab = NULL;
-    if (__elf_section_table)
-        xfree(__elf_section_table);
-    __elf_section_table = NULL;
+    xfree(st);
 }
 
-/*
- * get elf section by index
- * @index: index of section table for section
+/* (OK)
+ * dumplicate section header
+ */
+static void elf_section_header_dumplicate(Elf32_Shdr *new, Elf32_Shdr *old)
+{
+    new->sh_name = old->sh_name;
+    new->sh_type = old->sh_type;
+    new->sh_flags = old->sh_flags;
+    new->sh_addr = old->sh_addr;
+    new->sh_offset = old->sh_offset;
+    new->sh_size = old->sh_size;
+    new->sh_link = old->sh_link;
+    new->sh_info = old->sh_info;
+    new->sh_addralign = old->sh_addralign;
+    new->sh_entsize = old->sh_entsize;
+}
+
+/* (OK)
+ * get elf section header by offset from section table.
+ * @filename: elf file
+ * @offset: offset of section table for section
+ *
+ * @return: section header
+ */
+Elf32_Shdr *elf_section_header_alloc_by_offset(const char *filename, 
+           int offset)
+{
+    Elf32_Ehdr *header;
+    Elf32_Shdr *st;
+    Elf32_Shdr *tmp, *tmp1;
+
+    header = elf_header_alloc(filename);
+    if (offset < 0 || offset > elf_header_section_numbers(header)) {
+        elf_header_free(header);
+        return NULL;
+    }
+
+    /* get section table */
+    st = elf_section_table_alloc(filename);
+    tmp1 = elf_section_header_get_by_index(st, offset);
+    /* create a new elf section header */
+    tmp = xmalloc(sizeof(Elf32_Shdr));
+    memset(tmp, 0, sizeof(Elf32_Shdr));
+
+    /* dumplicate from section table */
+    elf_section_header_dumplicate(tmp, tmp1);
+    /* free section table */
+    elf_section_table_free(st);
+    elf_header_free(header);
+    return tmp;
+}
+
+/* (OK)
+ * get elf section by section name
+ * @name: section name
  *
  * @return: Elf32_Shdr
  */
-Elf32_Shdr *elf_get_section_by_index(int index)
+Elf32_Shdr *elf_section_header_alloc_by_name(const char *filename, 
+            const char *name)
 {
-    return ((Elf32_Shdr *)(__elf_section_table) + index);
+    Elf32_Ehdr *header;
+    Elf32_Shdr *section_table;
+    Elf32_Shdr *tmp = NULL;
+    int i;
+
+    /* get elf header */
+    header = elf_header_alloc(filename);
+    /* get elf section table */
+    section_table = elf_section_table_alloc(filename);
+
+    for(i = 1; i < elf_header_section_numbers(header); i++) {
+        /* current section */
+        Elf32_Shdr *st = elf_section_header_get_by_index(section_table, i);
+        char *st_name;
+
+        /* get section name */
+        st_name = elf_section_name_alloc(filename, st);
+        /* Compare string */
+        if (strcmp(st_name, name) == 0) {
+            /* create new section header */
+            tmp = xmalloc(sizeof(Elf32_Shdr));
+            memset(tmp, 0, sizeof(Elf32_Shdr));
+            /* dumplicate contents */
+            elf_section_header_dumplicate(tmp, st);
+            break;
+        }
+        elf_section_name_free(st_name);
+    }
+    /* Release resource */
+    elf_header_free(header);
+    elf_section_table_free(section_table);
+    return tmp;
 }
 
-/*
- * load setion by index
- * @index:      Index of section on section table.
+/* (OK)
+ * free elf setcion header
+ * @header: Elf32 section header
+ */
+void elf_section_header_free(Elf32_Shdr *st)
+{
+    xfree(st);
+}
+
+/* (OK)
+ * load section contents
+ * @filename: elf file name
+ * @st: Elf32 section header
  *
  * @return: the buffer of section contents.
  */
-void *elf_load_section_by_index(int index)
+void *elf_section_contents_alloc(const char *filename, Elf32_Shdr *st)
 {
-    size_t offset;
     char *buffer;
     int fd;
-    Elf32_Shdr *st = elf_get_section_by_index(index);
 
     /* allocate buffer */
     buffer = xmalloc(st->sh_size);
     memset(buffer, 0, st->sh_size);
 
-    /* offset on file */
-    offset = st->sh_offset;
-    fd = open(__elf_file_name, O_RDONLY, 0444);
+    fd = open(filename, O_RDONLY, 0444);
     if (!fd)
-        return -ENODEV;
-    lseek(fd, offset, SEEK_SET);
+        return NULL;
+    lseek(fd, st->sh_offset, SEEK_SET);
     read(fd, buffer, st->sh_size);
     return buffer;
 }
 
-/*
- * free section buffer
+/* (OK) 
+ * free section contents
+ * @stc: section contents
  */
-void elf_free_section(void *buffer)
+void elf_section_contents_free(void *stc)
 {
-    if (!buffer)
-        xfree(buffer);
+    xfree(stc);
 }
 
-/*
- * get section name by index.
- * @index: sh_name on Elf32_Shdr
+/* (OK)
+ * load section contents by offset
+ * @filename: elf file name
+ * @offset: offset on section table
+ *
+ * @return: the buffer of section contents.
  */
-const char *elf_get_section_name_by_index(int index)
+void *elf_section_contents_alloc_by_offset(const char *filename, int offset)
 {
-#ifndef CONFIG_ELF_BUFFER_STRTAB
-    char *first = NULL;
-    char *dest  = NULL;
-    int locate;
+    Elf32_Shdr *tmp = elf_section_header_alloc_by_offset(filename, offset);
+    char *buffer;
 
-    /* get index of string table */
-    __elf_strtab = elf_load_section_by_index(__elf_header->e_shstrndx);
-    /* get first character address of string. */
-    first = &__elf_strtab[index];
-    /* locate end character */
-    locate = strchr(first, '\0');
-    /* allocate memory fo name */
-    dest = xmalloc(locate * sizeof(char) + 1);
-    /* dumplicate contents to new string */
-    strncpy(dest, first, locate + 1);
-    /* free section */
-    xfree(__elf_strtab);
-    __elf_strtab = NULL;
-    return (dest);
-#endif
-    if (!__elf_strtab)
-        return -EINVAL;
-    /* get frist char of specify string */
-    return (&__elf_strtab[index]);
+    buffer = elf_section_contents_alloc(filename, tmp);
+    /* free Elf32_Shdr */
+    elf_section_header_free(tmp);
+    return buffer; 
 }
 
-/* 
- * free section name 
+/* (OK)
+ * load section contents by name
+ * @filename: elf file name
+ * @name: section header name.
+ *
+ * @return: contents of section
  */
-void elf_free_section_name(const char *name)
+void *elf_section_contents_alloc_by_name(const char *filename, 
+      const char *name)
 {
-#ifndef CONFIG_ELF_BUFFER_STRTAB
-    if (name)
-        xfree(name);
-#endif
+    Elf32_Shdr *tmp = elf_section_header_alloc_by_name(filename, name);
+    char *buffer;
+
+    buffer = elf_section_contents_alloc(filename, tmp);
+    /* free Elf32_Shdr */
+    elf_section_header_free(tmp);
+    return buffer;
 }
 
+/* (OK)
+ * alloc section name
+ * @filename: elf file name
+ * @st: section header
+ *
+ * @return: section name
+ */
+char *elf_section_name_alloc(const char *filename, Elf32_Shdr *st)
+{
+    Elf32_Ehdr *header;
+    Elf32_Shdr *section_table;
+    Elf32_Shdr *strtab;
+    char *contents;
+    char *tmp1, *tmp2;
 
+    /* get elf header */
+    header = elf_header_alloc(filename);
+    /* get elf section table */
+    section_table = elf_section_table_alloc(filename);
+    /* get section header for .strtab */
+    strtab = elf_section_header_get_by_index(section_table, 
+                                             header->e_shstrndx);
+    /* get section contents for .strtab */
+    contents = elf_section_contents_alloc(filename, strtab); 
+    /* get section name */
+    tmp1 = contents + st->sh_name;
+    /* create new name */
+    tmp2 = xmalloc(strlen(tmp1) + 1);
+    memset(tmp2, 0, strlen(tmp1) + 1);
+    /* dumplcate name from strtab */
+    strncpy(tmp2, tmp1, strlen(tmp1) + 1);
 
+    elf_section_contents_free(contents);
+    elf_section_table_free(section_table);
+    elf_header_free(header);
+    return tmp2;
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
+/* (OK)
+ * free section name
+ * @name: section name
+ */
+void elf_section_name_free(void *name)
+{
+    xfree(name);
+}

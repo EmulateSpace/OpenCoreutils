@@ -17,8 +17,8 @@
  * License along with the GNU C Library; if not, see
  * <http://www.gnu.org/licenses/>.
  */
-#ifndef _ELF_H
-#define _ELF_H
+#ifndef _ELF_IN_H
+#define _ELF_IN_H
 
 #include <stdint.h>
 
@@ -33,6 +33,9 @@ typedef uint32_t Elf32_Addr;
 
 /* Type of file offsets. */
 typedef uint32_t Elf32_Off;
+
+/* Type for section indices, which are 16-bit quantities. */
+typedef uint16_t Elf32_Section;
 
 /* The ELF file header. This appears at the start of every ELF file. */
 #define EI_NIDENT (16)
@@ -274,5 +277,88 @@ typedef struct
 #define SHT_LOUSER        0x80000000    /* Start of application-specific */
 #define SHT_HIUSER        0x8fffffff    /* End of application-specific */
 
+/* Symbol table entry */
+typedef struct 
+{
+    Elf32_Word    st_name;     /* Symbol name (string tbl index) */
+    Elf32_Addr    st_value;    /* Symbol value */
+    Elf32_Word    st_size;     /* Symbol size */
+    unsigned char st_info;     /* Symbol type and binding */
+    unsigned char st_other;    /* Symbol visibility */
+    Elf32_Section st_shndx;    /* Section index */
+} Elf32_Sym;
+
+/* How to extract and insert information held in the st_info field. */
+
+#define ELF32_ST_BIND(val)              (((unsigned char)(val)) >> 4)
+#define ELF32_ST_TYPE(val)              ((val) & 0xf)
+#define ELF32_ST_INFO(bind, type)       (((bind) << 4) + ((type) & 0xf))
+
+/* Legal values for ST_BIND subfield of st_info (symbol binding).  */
+
+#define STB_LOCAL       0               /* Local symbol */
+#define STB_GLOBAL      1               /* Global symbol */
+#define STB_WEAK        2               /* Weak symbol */
+#define STB_NUM         3               /* Number of defined types.  */
+#define STB_LOOS        10              /* Start of OS-specific */
+#define STB_GNU_UNIQUE  10              /* Unique symbol.  */
+#define STB_HIOS        12              /* End of OS-specific */
+#define STB_LOPROC      13              /* Start of processor-specific */
+#define STB_HIPROC      15              /* End of processor-specific */
+
+
+/* Legal values for ST_TYPE subfield of st_info (symbol type).  */
+
+#define STT_NOTYPE      0               /* Symbol type is unspecified */
+#define STT_OBJECT      1               /* Symbol is a data object */
+#define STT_FUNC        2               /* Symbol is a code object */
+#define STT_SECTION     3               /* Symbol associated with a section */
+#define STT_FILE        4               /* Symbol's name is file name */
+#define STT_COMMON      5               /* Symbol is a common data object */
+#define STT_TLS         6               /* Symbol is thread-local data object*/
+#define STT_NUM         7               /* Number of defined types.  */
+#define STT_LOOS        10              /* Start of OS-specific */
+#define STT_GNU_IFUNC   10              /* Symbol is indirect code object */
+#define STT_HIOS        12              /* End of OS-specific */
+#define STT_LOPROC      13              /* Start of processor-specific */
+#define STT_HIPROC      15              /* End of processor-specific */
+
+/* Special section indices.  */
+
+#define SHN_UNDEF       0               /* Undefined section */
+#define SHN_LORESERVE   0xff00          /* Start of reserved indices */
+#define SHN_LOPROC      0xff00          /* Start of processor-specific */
+#define SHN_BEFORE      0xff00          /* Order section before all others
+                                           (Solaris).  */
+#define SHN_AFTER       0xff01          /* Order section after all others
+                                           (Solaris).  */
+#define SHN_HIPROC      0xff1f          /* End of processor-specific */
+#define SHN_LOOS        0xff20          /* Start of OS-specific */
+#define SHN_HIOS        0xff3f          /* End of OS-specific */
+#define SHN_ABS         0xfff1          /* Associated symbol is absolute */
+#define SHN_COMMON      0xfff2          /* Associated symbol is common */
+#define SHN_XINDEX      0xffff          /* Index is in extra table.  */
+#define SHN_HIRESERVE   0xffff          /* End of reserved indices */
+
+/* Legal values for sh_flags (section flags).  */
+
+#define SHF_WRITE            (1 << 0)   /* Writable */
+#define SHF_ALLOC            (1 << 1)   /* Occupies memory during execution */
+#define SHF_EXECINSTR        (1 << 2)   /* Executable */
+#define SHF_MERGE            (1 << 4)   /* Might be merged */
+#define SHF_STRINGS          (1 << 5)   /* Contains nul-terminated strings */
+#define SHF_INFO_LINK        (1 << 6)   /* `sh_info' contains SHT index */
+#define SHF_LINK_ORDER       (1 << 7)   /* Preserve order after combining */
+#define SHF_OS_NONCONFORMING (1 << 8)   /* Non-standard OS specific handling
+                                           required */
+#define SHF_GROUP            (1 << 9)   /* Section is member of a group.  */
+#define SHF_TLS              (1 << 10)  /* Section hold thread-local data.  */
+#define SHF_COMPRESSED       (1 << 11)  /* Section with compressed data. */
+#define SHF_MASKOS           0x0ff00000 /* OS-specific.  */
+#define SHF_MASKPROC         0xf0000000 /* Processor-specific */
+#define SHF_ORDERED          (1 << 30)  /* Special ordering requirement
+                                           (Solaris).  */
+#define SHF_EXCLUDE          (1U << 31) /* Section is excluded unless
+                                           referenced or allocated (Solaris).*/
 
 #endif

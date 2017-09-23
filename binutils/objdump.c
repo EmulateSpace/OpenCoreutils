@@ -25,74 +25,77 @@
 #include <xmalloc.h>
 
 static int __dump_headers;
+static int __dump_symtab;
+
+static const char *SECTION_FLAGS[] = {
+    "CONTENTS", "ALLOC", "LOAD", "RELOC",
+    "READONLY", "CODE",
+};
 
 /*
  * Dump elf headers
  */
-static void dump_headers(void)
+static void dump_headers(const char *filename)
 {
+    Elf32_Ehdr *header;
+    Elf32_Shdr *section_table;
     int i;
 
-    /* Dump file name, file class and target machine */
-    printf("%s:     file format elf%s-%s\n\n", __elf_file_name,
-            elf_file_class(__elf_header) ? "32" : "64",
-            elf_arch_machine(__elf_header) ? "i386": "x86");
+    /* get elf header */
+    header = elf_header_alloc(filename);
+    /* get section table */
+    section_table = elf_section_table_alloc(filename);
 
-    /* Dump section */
-    printf("Sections:\n");
+    printf("%s::     file format ", filename);
+    printf("%s-%s\n", elf_header_file_class(header) ? "elf32" : "unknown",
+           elf_header_arch_machine(header) ? "i386" : "unknown");
+
+    printf("\nSections:\n");
+
     printf("Idx Name          Size      VMA       LMA       File off  Algn\n");
-    for (i = 0; i < elf_section_numbers(__elf_header); i++) {
-        /* get section table describe */
-        Elf32_Shdr *st = elf_get_section_by_index(i);
-        char *section_name = elf_get_section_name_by_index(st->sh_name);
-
-        /* first string table is NULL */
-        if (i == 0) {
-            printf("%3d  NULL\n", i);
-            continue;
-        }
-
-        /* dump base section info */
-        printf("%3d %-13s %08x  %08x  %08x  %08x  %d**%d\n", i, 
-               section_name, st->sh_size, st->sh_addr, st->sh_addr, 
-               st->sh_offset, st->sh_addralign, st->sh_addralign);
+    printf("  0 NULL          00000000  00000000  00000000  00000000  0--0\n");
+    for (i = 1; i < elf_header_section_numbers(header); i++) {
+        /* get specify section header */
+        Elf32_Shdr *st = elf_section_header_get_by_index(section_table, i);
+        char *name = elf_section_name_alloc(filename, st);        
         
-
-        /* free section name in the end */
-        xfree(section_name);
-    }    
+        /* index */
+        printf("%3d ", i);
+        /* section name */
+        printf("%-14s", name);
+        /* section size */
+        printf("%08x  ", st->sh_size);
+        /* vma address */
+        printf("%08x  ", st->sh_addr);
+        /* LMA */
+        printf("%08x  ", st->sh_addr);
+        /* File offset */
+        printf("%08x  ", st->sh_offset);
+        /* Alignment */
+        printf("%d--%d", st->sh_addralign, st->sh_addralign * 2);
+        printf("\n                  ");
+        printf("CONTENTS, ALLOC, LOAD, RELOC, READONLY, CODE\n");
+        /* free */
+        elf_section_name_free(name);
+    }
+    elf_section_table_free(section_table);
+    elf_header_free(header);
 }
 
-/* Initialize objdump tools */
-static int objdump_init(const char *filename)
+/* Dump symbol table */
+static void dump_symtab(void)
 {
-    /* Setup file name */
-    elf_file_name_get(filename);
-    /* Setup elf header */
-    elf_header_get();
-    /* Setup elf section tables */
-    elf_section_table_get();
-    return 0;
+    printf("Hello World.\n");
 }
 
-/* Exit objdump tools */
-static void objdump_exit(void)
-{
-    /* Remove elf section tables */
-    elf_section_table_put();
-    /* Remove elf header */
-    elf_header_put();
-    /* Remove file name */
-    elf_file_name_put();
-}
-
-int main(int argc, char **argv[])
+int main(int argc, char *argv[])
 {
     const struct option long_opts[] = {
         {"headers", no_argument, NULL, 'h'},
+        {"syms", no_argument, NULL, 't'},
         {0, 0, 0, 0}
     };
-    const char *short_opts = "h";
+    const char *short_opts = "ht";
     int c;
 
     while ((c = getopt_long(argc, argv, short_opts, long_opts, NULL)) != -1) {
@@ -100,18 +103,20 @@ int main(int argc, char **argv[])
         case 'h':
             __dump_headers = 1;
             break;
+        case 't':
+            __dump_symtab = 1;
+            break;
         default:
             abort();
         }
     }
-    /* initalize objdump */
-    objdump_init(argv[argc - 1]);
 
     if (__dump_headers) {
-        dump_headers();
+        dump_headers(argv[argc - 1]);
+    }
+    if (__dump_symtab) {
+        dump_symtab();
     }
     
-    /* exit objdump */
-    objdump_exit();
     return 0;
 }

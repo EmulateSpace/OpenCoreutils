@@ -13,10 +13,4 @@ config ELF_API
 	help
 	  EFL application interface
 
-config ELF_BUFFER_STRTAB
-	bool "cache ELF string table section"
-	help
-	  Create globle buffer for elf string table section. Accelerate
-	  Access string table section.
-
 endmenu
